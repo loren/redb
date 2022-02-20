@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::convert::TryInto;
 use std::fmt::Debug;
+use std::mem::size_of;
 
 pub trait RedbValue {
     type View<'a>: Debug + 'a
@@ -87,6 +88,78 @@ impl RedbKey for str {
         let str1 = str::from_bytes(data1);
         let str2 = str::from_bytes(data2);
         str1.cmp(str2)
+    }
+}
+
+impl RedbValue for &str {
+    type View<'a> = &'a str
+    where
+    Self: 'a;
+    type AsBytes<'a> = &'a str
+    where
+    Self: 'a;
+
+    fn from_bytes<'a>(data: &'a [u8]) -> &'a str
+    where
+        Self: 'a,
+    {
+        std::str::from_utf8(data).unwrap()
+    }
+
+    fn as_bytes(&self) -> &str {
+        self
+    }
+
+    fn redb_type_name() -> String {
+        "str".to_string()
+    }
+}
+
+impl RedbKey for &str {
+    fn compare(data1: &[u8], data2: &[u8]) -> Ordering {
+        let str1 = str::from_bytes(data1);
+        let str2 = str::from_bytes(data2);
+        str1.cmp(str2)
+    }
+}
+
+impl<T0: RedbValue, T1: RedbValue> RedbValue for (T0, T1) {
+    type View<'a> = (
+        T0::View<'a>,
+        T1::View<'a>,
+    )
+    where
+        Self: 'a;
+    type AsBytes<'a> = Vec<u8>
+    where
+        Self: 'a;
+
+    fn from_bytes<'a>(data: &'a [u8]) -> Self::View<'a>
+    where
+        Self: 'a,
+    {
+        let t0_len = u32::from_be_bytes(data[0..size_of::<u32>()].try_into().unwrap()) as usize;
+        let t0 = T0::from_bytes(&data[size_of::<u32>()..(size_of::<u32>() + t0_len)]);
+        let t1 = T1::from_bytes(&data[(size_of::<u32>() + t0_len)..]);
+        (t0, t1)
+    }
+
+    fn as_bytes(&self) -> Vec<u8> {
+        let t0_bytes = self.0.as_bytes();
+        let t1_bytes = self.1.as_bytes();
+        let t0_bytes_ref = t0_bytes.as_ref();
+        let t1_bytes_ref = t1_bytes.as_ref();
+        let mut output =
+            Vec::with_capacity(size_of::<u32>() + t0_bytes_ref.len() + t1_bytes_ref.len());
+        output.extend_from_slice(&(t0_bytes_ref.len() as u32).to_be_bytes());
+        output.extend_from_slice(t0_bytes_ref);
+        output.extend_from_slice(t1_bytes_ref);
+
+        output
+    }
+
+    fn redb_type_name() -> String {
+        format!("({},{})", T0::redb_type_name(), T1::redb_type_name())
     }
 }
 
