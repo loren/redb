@@ -244,7 +244,7 @@ impl<'a, K: RedbKey + ?Sized + 'a, V: RedbKey + ?Sized + 'a> MultimapValueIter<'
 
     // TODO: implement Iter when GATs are stable
     #[allow(clippy::should_implement_trait)]
-    pub fn next(&mut self) -> Option<<V as RedbValue>::View<'_>> {
+    pub fn next(&mut self) -> Option<V::View<'_>> {
         if let Some(entry) = self.inner.next() {
             let pair = MultimapKVPairAccessor::<K, V> {
                 data: entry.key(),
@@ -274,7 +274,7 @@ impl<'a, K: RedbKey + ?Sized + 'a, V: RedbKey + ?Sized + 'a> MultimapRangeIter<'
 
     // TODO: implement Iter when GATs are stable
     #[allow(clippy::should_implement_trait)]
-    pub fn next(&mut self) -> Option<(<K as RedbValue>::View<'_>, <V as RedbValue>::View<'_>)> {
+    pub fn next(&mut self) -> Option<(K::View<'_>, V::View<'_>)> {
         if let Some(entry) = self.inner.next() {
             let pair = MultimapKVPairAccessor::<K, V> {
                 data: entry.key(),

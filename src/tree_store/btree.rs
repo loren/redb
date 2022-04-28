@@ -119,7 +119,7 @@ impl<'a, K: RedbKey + ?Sized, V: RedbValue + ?Sized> BtreeMut<'a, K, V> {
         Btree::new(self.root, self.mem)
     }
 
-    pub(crate) fn get(&self, key: &K) -> Result<Option<<V as RedbValue>::View<'_>>> {
+    pub(crate) fn get(&self, key: &K) -> Result<Option<V::View<'_>>> {
         self.read_tree().get(key)
     }
 
@@ -152,7 +152,7 @@ impl<'a, K: RedbKey + ?Sized, V: RedbValue + ?Sized> Btree<'a, K, V> {
         }
     }
 
-    pub(crate) fn get(&self, key: &K) -> Result<Option<<V as RedbValue>::View<'a>>> {
+    pub(crate) fn get(&self, key: &K) -> Result<Option<V::View<'a>>> {
         if let Some(p) = self.root {
             let root_page = self.mem.get_page(p);
             return Ok(self.get_helper(root_page, key.as_bytes().as_ref()));
@@ -162,7 +162,7 @@ impl<'a, K: RedbKey + ?Sized, V: RedbValue + ?Sized> Btree<'a, K, V> {
     }
 
     // Returns the value for the queried key, if present
-    fn get_helper(&self, page: PageImpl<'a>, query: &[u8]) -> Option<<V as RedbValue>::View<'a>> {
+    fn get_helper(&self, page: PageImpl<'a>, query: &[u8]) -> Option<V::View<'a>> {
         let node_mem = page.memory();
         match node_mem[0] {
             LEAF => {

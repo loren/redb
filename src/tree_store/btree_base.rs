@@ -134,7 +134,7 @@ impl<'a, V: RedbValue + ?Sized> AccessGuard<'a, V> {
         }
     }
 
-    pub fn to_value(&self) -> <V as RedbValue>::View<'_> {
+    pub fn to_value(&self) -> V::View<'_> {
         V::from_bytes(&self.page.memory()[self.offset..(self.offset + self.len)])
     }
 }

@@ -69,7 +69,7 @@ impl<'db, 'txn, K: RedbKey + ?Sized, V: RedbValue + ?Sized> Table<'db, 'txn, K, 
 impl<'db, 'txn, K: RedbKey + ?Sized, V: RedbValue + ?Sized> ReadableTable<K, V>
     for Table<'db, 'txn, K, V>
 {
-    fn get(&self, key: &K) -> Result<Option<<V as RedbValue>::View<'_>>> {
+    fn get(&self, key: &K) -> Result<Option<V::View<'_>>> {
         self.tree.get(key)
     }
 
@@ -97,7 +97,7 @@ impl<'db, 'txn, K: RedbKey + ?Sized, V: RedbValue + ?Sized> Drop for Table<'db, 
 
 pub trait ReadableTable<K: RedbKey + ?Sized, V: RedbValue + ?Sized> {
     /// Returns the value corresponding to the given key
-    fn get(&self, key: &K) -> Result<Option<<V as RedbValue>::View<'_>>>;
+    fn get(&self, key: &K) -> Result<Option<V::View<'_>>>;
 
     /// Returns a double-ended iterator over a range of elements in the table
     ///
@@ -161,7 +161,7 @@ impl<'txn, K: RedbKey + ?Sized, V: RedbValue + ?Sized> ReadOnlyTable<'txn, K, V>
 impl<'txn, K: RedbKey + ?Sized, V: RedbValue + ?Sized> ReadableTable<K, V>
     for ReadOnlyTable<'txn, K, V>
 {
-    fn get(&self, key: &K) -> Result<Option<<V as RedbValue>::View<'_>>> {
+    fn get(&self, key: &K) -> Result<Option<V::View<'_>>> {
         self.tree.get(key)
     }
 
@@ -193,7 +193,7 @@ impl<'a, K: RedbKey + ?Sized + 'a, V: RedbValue + ?Sized + 'a> RangeIter<'a, K, 
 
     // TODO: implement Iter when GATs are stable
     #[allow(clippy::should_implement_trait)]
-    pub fn next(&mut self) -> Option<(<K as RedbValue>::View<'_>, <V as RedbValue>::View<'_>)> {
+    pub fn next(&mut self) -> Option<(K::View<'_>, V::View<'_>)> {
         if let Some(entry) = self.inner.next() {
             let key = K::from_bytes(entry.key());
             let value = V::from_bytes(entry.value());
