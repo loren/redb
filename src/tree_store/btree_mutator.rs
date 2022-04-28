@@ -5,7 +5,7 @@ use crate::tree_store::btree_base::{
 use crate::tree_store::btree_mutator::DeletionResult::{
     DeletedBranch, DeletedLeaf, PartialBranch, PartialLeaf, Subtree,
 };
-use crate::tree_store::page_store::{Page, PageImpl};
+use crate::tree_store::page_store::{drop_ref, Page, PageImpl};
 use crate::tree_store::{AccessGuardMut, PageNumber, TransactionalMemory};
 use crate::types::{RedbKey, RedbValue};
 use crate::{AccessGuard, Result};
@@ -160,7 +160,7 @@ impl<'a, 'b, K: RedbKey + ?Sized, V: RedbValue + ?Sized> MutateHelper<'a, 'b, K,
                     let new_page_number = new_page.get_page_number();
                     let new_page_accessor = LeafAccessor::new(&new_page);
                     let offset = new_page_accessor.offset_of_value(position).unwrap();
-                    drop(new_page_accessor);
+                    drop_ref(new_page_accessor);
                     let guard = AccessGuardMut::new(new_page, offset, value.len());
                     return if position == 0 {
                         Ok(InsertionResult {
@@ -193,13 +193,13 @@ impl<'a, 'b, K: RedbKey + ?Sized, V: RedbValue + ?Sized> MutateHelper<'a, 'b, K,
                     } else {
                         None
                     };
-                    drop(page);
+                    drop_ref(page);
                     let mut page_mut = self.mem.get_page_mut(page_number);
                     let mut mutator = LeafMutator::new(&mut page_mut);
                     mutator.insert(position, found, key, value);
                     let new_page_accessor = LeafAccessor::new(&page_mut);
                     let offset = new_page_accessor.offset_of_value(position).unwrap();
-                    drop(new_page_accessor);
+                    drop_ref(new_page_accessor);
                     let guard = AccessGuardMut::new(page_mut, offset, value.len());
                     return Ok(InsertionResult {
                         new_root: page_number,
@@ -240,7 +240,7 @@ impl<'a, 'b, K: RedbKey + ?Sized, V: RedbValue + ?Sized> MutateHelper<'a, 'b, K,
                             self.mem,
                         ))
                     } else {
-                        drop(page);
+                        drop_ref(page);
                         self.free_policy
                             .conditional_free(page_number, self.freed, self.mem)?;
                         None
@@ -275,7 +275,7 @@ impl<'a, 'b, K: RedbKey + ?Sized, V: RedbValue + ?Sized> MutateHelper<'a, 'b, K,
                             self.mem,
                         ))
                     } else {
-                        drop(page);
+                        drop_ref(page);
                         self.free_policy
                             .conditional_free(page_number, self.freed, self.mem)?;
                         None
@@ -320,7 +320,7 @@ impl<'a, 'b, K: RedbKey + ?Sized, V: RedbValue + ?Sized> MutateHelper<'a, 'b, K,
                         });
                     } else if self.mem.uncommitted(page.get_page_number()) {
                         let page_number = page.get_page_number();
-                        drop(page);
+                        drop_ref(page);
                         // Safety: Since the page is uncommitted, no other transactions could have it open
                         // and we just dropped our reference to it, on the line above
                         let mut mutpage = self.mem.get_page_mut(page_number);
@@ -382,7 +382,7 @@ impl<'a, 'b, K: RedbKey + ?Sized, V: RedbValue + ?Sized> MutateHelper<'a, 'b, K,
                 };
                 // Free the original page, since we've replaced it
                 let page_number = page.get_page_number();
-                drop(page);
+                drop_ref(page);
                 // Safety: If the page is uncommitted, no other transactions can have references to it,
                 // and we just dropped ours on the line above
                 self.free_policy
@@ -418,7 +418,7 @@ impl<'a, 'b, K: RedbKey + ?Sized, V: RedbValue + ?Sized> MutateHelper<'a, 'b, K,
         {
             let (start, end) = accessor.value_range(position).unwrap();
             let page_number = page.get_page_number();
-            drop(page);
+            drop_ref(page);
             // Safety: caller guaranteed that no other references to uncommitted data exist,
             // and we just dropped the reference to page
             let page_mut = self.mem.get_page_mut(page_number);
@@ -501,7 +501,7 @@ impl<'a, 'b, K: RedbKey + ?Sized, V: RedbValue + ?Sized> MutateHelper<'a, 'b, K,
                 // NO-OP. One of our descendants is uncommitted, so there was no change
                 original_page_number
             } else if self.mem.uncommitted(original_page_number) {
-                drop(page);
+                drop_ref(page);
                 // Safety: Caller guarantees there are no references to uncommitted pages,
                 // and we just dropped our reference to it on the line above
                 let mut mutpage = self.mem.get_page_mut(original_page_number);
@@ -572,7 +572,7 @@ impl<'a, 'b, K: RedbKey + ?Sized, V: RedbValue + ?Sized> MutateHelper<'a, 'b, K,
 
                     let result = self.finalize_branch_builder(builder)?;
 
-                    drop(page);
+                    drop_ref(page);
                     self.free_policy.conditional_free(
                         original_page_number,
                         self.freed,
@@ -629,7 +629,7 @@ impl<'a, 'b, K: RedbKey + ?Sized, V: RedbValue + ?Sized> MutateHelper<'a, 'b, K,
                 let result = self.finalize_branch_builder(builder)?;
 
                 let page_number = merge_with_page.get_page_number();
-                drop(merge_with_page);
+                drop_ref(merge_with_page);
                 self.free_policy
                     .conditional_free(page_number, self.freed, self.mem)?;
                 // child_page_number does not need to be freed, because it's a leaf and the
@@ -684,7 +684,7 @@ impl<'a, 'b, K: RedbKey + ?Sized, V: RedbValue + ?Sized> MutateHelper<'a, 'b, K,
                 let result = self.finalize_branch_builder(builder)?;
 
                 let page_number = merge_with_page.get_page_number();
-                drop(merge_with_page);
+                drop_ref(merge_with_page);
                 self.free_policy
                     .conditional_free(page_number, self.freed, self.mem)?;
 
@@ -742,10 +742,10 @@ impl<'a, 'b, K: RedbKey + ?Sized, V: RedbValue + ?Sized> MutateHelper<'a, 'b, K,
                 let result = self.finalize_branch_builder(builder)?;
 
                 let page_number = merge_with_page.get_page_number();
-                drop(merge_with_page);
+                drop_ref(merge_with_page);
                 self.free_policy
                     .conditional_free(page_number, self.freed, self.mem)?;
-                drop(partial_child_page);
+                drop_ref(partial_child_page);
                 self.free_policy
                     .conditional_free(partial_child, self.freed, self.mem)?;
 

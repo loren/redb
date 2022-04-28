@@ -1,4 +1,4 @@
-use crate::tree_store::page_store::{Page, PageImpl, PageMut, TransactionalMemory};
+use crate::tree_store::page_store::{drop_ref, Page, PageImpl, PageMut, TransactionalMemory};
 use crate::tree_store::PageNumber;
 use crate::types::{RedbKey, RedbValue};
 use crate::Result;
@@ -451,7 +451,7 @@ impl<'a, 'b> LeafBuilder<'a, 'b> {
         for (key, value) in self.pairs.iter().take(division) {
             builder.append(key, value);
         }
-        drop(builder);
+        drop_ref(builder);
 
         let required_size = Self::required_bytes(
             self.pairs.len() - division,
@@ -468,7 +468,7 @@ impl<'a, 'b> LeafBuilder<'a, 'b> {
         for (key, value) in self.pairs[division..].iter() {
             builder.append(key, value);
         }
-        drop(builder);
+        drop_ref(builder);
 
         Ok((page1, self.pairs[division - 1].0, page2))
     }
@@ -483,7 +483,7 @@ impl<'a, 'b> LeafBuilder<'a, 'b> {
         for (key, value) in self.pairs {
             builder.append(key, value);
         }
-        drop(builder);
+        drop_ref(builder);
         Ok(page)
     }
 }
@@ -633,7 +633,7 @@ impl<'a: 'b, 'b> LeafMutator<'a, 'b> {
             .value_range(i)
             .map(|(start, end)| end - start)
             .unwrap_or_default();
-        drop(accessor);
+        drop_ref(accessor);
 
         let value_delta = if overwrite {
             value.len() as isize - existing_value_len as isize
@@ -727,7 +727,7 @@ impl<'a: 'b, 'b> LeafMutator<'a, 'b> {
         let value_start = accessor.value_start(i).unwrap();
         let value_end = accessor.value_end(i).unwrap();
         let last_value_end = accessor.value_end(accessor.num_pairs() - 1).unwrap();
-        drop(accessor);
+        drop_ref(accessor);
 
         // Update all the pointers
         for j in 0..i {
@@ -804,7 +804,7 @@ impl<'a: 'b, 'b> LeafMutator<'a, 'b> {
     fn update_value_end(&mut self, i: usize, delta: isize) {
         let accessor = LeafAccessor::new(self.page);
         let num_pairs = accessor.num_pairs();
-        drop(accessor);
+        drop_ref(accessor);
         let offset = 4 + size_of::<u32>() * (num_pairs + i);
         let mut ptr = u32::from_le_bytes(
             self.page.memory()[offset..(offset + size_of::<u32>())]
@@ -985,7 +985,7 @@ impl<'a, 'b> BranchBuilder<'a, 'b> {
             let key = &self.keys[i - 1];
             builder.write_nth_key(key.as_ref(), self.children[i], i - 1);
         }
-        drop(builder);
+        drop_ref(builder);
 
         Ok(page)
     }
@@ -1011,7 +1011,7 @@ impl<'a, 'b> BranchBuilder<'a, 'b> {
             let key = &self.keys[i];
             builder.write_nth_key(key.as_ref(), self.children[i + 1], i);
         }
-        drop(builder);
+        drop_ref(builder);
 
         let size =
             RawBranchBuilder::required_bytes(self.keys.len() - division - 1, second_split_key_len);
@@ -1022,7 +1022,7 @@ impl<'a, 'b> BranchBuilder<'a, 'b> {
             let key = &self.keys[i];
             builder.write_nth_key(key.as_ref(), self.children[i + 1], i - division - 1);
         }
-        drop(builder);
+        drop_ref(builder);
 
         Ok((page1, division_key, page2))
     }
