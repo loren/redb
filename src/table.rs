@@ -1,7 +1,7 @@
 use crate::tree_store::{
     AccessGuardMut, Btree, BtreeMut, BtreeRangeIter, PageNumber, TransactionalMemory,
 };
-use crate::types::{RedbKey, RedbValue, WithLifetime};
+use crate::types::{RedbKey, RedbValue};
 use crate::Result;
 use crate::{AccessGuard, WriteTransaction};
 use std::borrow::Borrow;
@@ -69,7 +69,7 @@ impl<'db, 'txn, K: RedbKey + ?Sized, V: RedbValue + ?Sized> Table<'db, 'txn, K, 
 impl<'db, 'txn, K: RedbKey + ?Sized, V: RedbValue + ?Sized> ReadableTable<K, V>
     for Table<'db, 'txn, K, V>
 {
-    fn get(&self, key: &K) -> Result<Option<<<V as RedbValue>::View as WithLifetime>::Out>> {
+    fn get(&self, key: &K) -> Result<Option<<V as RedbValue>::View<'_>>> {
         self.tree.get(key)
     }
 
@@ -97,7 +97,7 @@ impl<'db, 'txn, K: RedbKey + ?Sized, V: RedbValue + ?Sized> Drop for Table<'db, 
 
 pub trait ReadableTable<K: RedbKey + ?Sized, V: RedbValue + ?Sized> {
     /// Returns the value corresponding to the given key
-    fn get(&self, key: &K) -> Result<Option<<<V as RedbValue>::View as WithLifetime>::Out>>;
+    fn get(&self, key: &K) -> Result<Option<<V as RedbValue>::View<'_>>>;
 
     /// Returns a double-ended iterator over a range of elements in the table
     ///
@@ -161,7 +161,7 @@ impl<'txn, K: RedbKey + ?Sized, V: RedbValue + ?Sized> ReadOnlyTable<'txn, K, V>
 impl<'txn, K: RedbKey + ?Sized, V: RedbValue + ?Sized> ReadableTable<K, V>
     for ReadOnlyTable<'txn, K, V>
 {
-    fn get(&self, key: &K) -> Result<Option<<<V as RedbValue>::View as WithLifetime>::Out>> {
+    fn get(&self, key: &K) -> Result<Option<<V as RedbValue>::View<'_>>> {
         self.tree.get(key)
     }
 
@@ -191,16 +191,9 @@ impl<'a, K: RedbKey + ?Sized + 'a, V: RedbValue + ?Sized + 'a> RangeIter<'a, K, 
         Self { inner }
     }
 
-    // TODO: Simplify this when GATs are stable
-    #[allow(clippy::type_complexity)]
     // TODO: implement Iter when GATs are stable
     #[allow(clippy::should_implement_trait)]
-    pub fn next(
-        &mut self,
-    ) -> Option<(
-        <<K as RedbValue>::View as WithLifetime>::Out,
-        <<V as RedbValue>::View as WithLifetime>::Out,
-    )> {
+    pub fn next(&mut self) -> Option<(<K as RedbValue>::View<'_>, <V as RedbValue>::View<'_>)> {
         if let Some(entry) = self.inner.next() {
             let key = K::from_bytes(entry.key());
             let value = V::from_bytes(entry.value());
@@ -217,9 +210,7 @@ impl<'a, K: RedbKey + ?Sized + 'a, V: RedbValue + ?Sized + 'a> RangeIter<'a, K, 
 
 #[cfg(test)]
 mod test {
-    use crate::types::{
-        AsBytesWithLifetime, RedbKey, RedbValue, RefAsBytesLifetime, RefLifetime, WithLifetime,
-    };
+    use crate::types::{RedbKey, RedbValue};
     use crate::{Database, ReadableTable, TableDefinition};
     use std::cmp::Ordering;
     use tempfile::NamedTempFile;
@@ -229,14 +220,19 @@ mod test {
         struct ReverseKey(Vec<u8>);
 
         impl RedbValue for ReverseKey {
-            type View = RefLifetime<[u8]>;
-            type ToBytes = RefAsBytesLifetime<[u8]>;
+            type View<'a> = &'a [u8];
+            type AsBytes<'a> = &'a [u8]
+            where
+                Self: 'a;
 
-            fn from_bytes(data: &[u8]) -> <Self::View as WithLifetime>::Out {
+            fn from_bytes<'a>(data: &'a [u8]) -> &'a [u8]
+            where
+                Self: 'a,
+            {
                 data
             }
 
-            fn as_bytes(&self) -> <Self::ToBytes as AsBytesWithLifetime>::Out {
+            fn as_bytes(&self) -> &[u8] {
                 &self.0
             }
 
