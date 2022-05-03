@@ -1,4 +1,8 @@
-use redb::{Database, MultimapTableDefinition, RangeIter, ReadableTable, TableDefinition};
+use redb::{
+    Database, MultimapTableDefinition, RangeIter, ReadableTable, TableDefinition,
+    VariableWidthValue,
+};
+use std::cmp::Ordering;
 use std::ops::{Range, RangeFull};
 use std::sync;
 use tempfile::NamedTempFile;
@@ -879,6 +883,69 @@ fn str_ref() {
     // Check that a &str can be read back as a str
     let table = read_txn.open_table(definition).unwrap();
     assert_eq!(table.len().unwrap(), 1);
+}
+
+#[test]
+fn custom_ordering() {
+    #[derive(Debug, Eq, PartialEq)]
+    struct ReverseKey(Vec<u8>);
+
+    impl VariableWidthValue for ReverseKey {
+        type AsBytes<'a> = &'a [u8];
+
+        fn from_bytes<'a>(data: &'a [u8]) -> ReverseKey
+        where
+            Self: 'a,
+        {
+            ReverseKey(data.to_vec())
+        }
+
+        fn to_bytes(&self) -> &[u8] {
+            &self.0
+        }
+
+        fn type_name() -> String {
+            "ReverseKey".to_string()
+        }
+    }
+
+    impl PartialOrd<Self> for ReverseKey {
+        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+            Some(self.cmp(other))
+        }
+    }
+
+    impl Ord for ReverseKey {
+        fn cmp(&self, other: &Self) -> Ordering {
+            other.0.cmp(&self.0)
+        }
+    }
+
+    const TABLE: TableDefinition<ReverseKey, [u8]> = TableDefinition::new("x");
+
+    let tmpfile: NamedTempFile = NamedTempFile::new().unwrap();
+    let db = unsafe { Database::create(tmpfile.path(), 1024 * 1024).unwrap() };
+    let write_txn = db.begin_write().unwrap();
+    {
+        let mut table = write_txn.open_table(TABLE).unwrap();
+        for i in 0..10u8 {
+            let key = vec![i];
+            table.insert(&ReverseKey(key), b"value").unwrap();
+        }
+    }
+    write_txn.commit().unwrap();
+
+    let read_txn = db.begin_read().unwrap();
+    let table = read_txn.open_table(TABLE).unwrap();
+    let start = ReverseKey(vec![7u8]); // ReverseKey is used, so 7 < 3
+    let end = ReverseKey(vec![3u8]);
+    let mut iter = table.range(start..=end).unwrap();
+    for i in (3..=7u8).rev() {
+        let (key, value) = iter.next().unwrap();
+        assert_eq!(i, key.0[0]);
+        assert_eq!(b"value", value);
+    }
+    assert!(iter.next().is_none());
 }
 
 #[test]

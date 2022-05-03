@@ -31,13 +31,80 @@ pub trait RedbKey: RedbValue {
     fn compare(data1: &[u8], data2: &[u8]) -> Ordering;
 }
 
+/// An interface for types to be in redb tables
+///
+/// Implement this trait to allow a type to be used as a value in a [TableDefinition](crate::TableDefinition).
+/// Types which implement [VariableWidthValue] and [Ord] can be used as keys in a [TableDefinition](crate::TableDefinition)
+pub trait VariableWidthValue: Debug {
+    type AsBytes<'a>: AsRef<[u8]> + 'a
+    where
+        Self: 'a;
+
+    /// Deserialize a stored series of bytes
+    fn from_bytes<'a>(data: &'a [u8]) -> Self
+    where
+        Self: 'a;
+
+    /// Serialize the value to a series of bytes
+    fn to_bytes(&self) -> Self::AsBytes<'_>;
+
+    /// Globally unique identifier for this type
+    ///
+    /// Note to implementors: This string is stored in the database file. Changing it indicates
+    /// that it is a different type. It is recommended that you use the fully qualified name of your
+    /// type, including the name of the crate.
+    fn type_name() -> String;
+}
+
+impl<V> RedbValue for V
+where
+    V: VariableWidthValue,
+{
+    type View<'a> = V
+    where
+        Self: 'a;
+    type AsBytes<'a> = V::AsBytes<'a>
+    where
+        Self: 'a;
+
+    fn fixed_width() -> Option<usize> {
+        None
+    }
+
+    fn from_bytes<'a>(data: &'a [u8]) -> V
+    where
+        Self: 'a,
+    {
+        <V as VariableWidthValue>::from_bytes(data)
+    }
+
+    fn as_bytes(&self) -> V::AsBytes<'_> {
+        self.to_bytes()
+    }
+
+    fn redb_type_name() -> String {
+        V::type_name()
+    }
+}
+
+impl<K> RedbKey for K
+where
+    K: VariableWidthValue + Ord,
+{
+    fn compare(data1: &[u8], data2: &[u8]) -> Ordering {
+        let k1 = K::from_bytes(data1);
+        let k2 = K::from_bytes(data2);
+        k1.cmp(&k2)
+    }
+}
+
 impl RedbValue for () {
     type View<'a> = ()
     where
-        Self: 'a;
+    Self: 'a;
     type AsBytes<'a> = &'a [u8]
     where
-        Self: 'a;
+    Self: 'a;
 
     fn fixed_width() -> Option<usize> {
         Some(0)
