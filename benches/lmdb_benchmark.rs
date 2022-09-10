@@ -9,9 +9,9 @@ use redb::{ReadableTable, TableDefinition, WriteStrategy};
 use std::time::{Duration, Instant};
 
 const ITERATIONS: usize = 3;
-const ELEMENTS: usize = 1_000_000;
+const ELEMENTS: usize = 16_000_000;
 const KEY_SIZE: usize = 24;
-const VALUE_SIZE: usize = 150;
+const VALUE_SIZE: usize = 12 * 100;
 const RNG_SEED: u64 = 3;
 
 fn fill_slice(slice: &mut [u8], rng: &mut fastrand::Rng) {
@@ -108,7 +108,7 @@ fn benchmark_redb(db: redb::Database) -> Vec<(&'static str, Duration)> {
     results.push(("individual writes", duration));
 
     let start = Instant::now();
-    let batch_size = 1000;
+    let batch_size = 5000;
     {
         for _ in 0..writes {
             let txn = db.begin_write().unwrap();
@@ -133,74 +133,74 @@ fn benchmark_redb(db: redb::Database) -> Vec<(&'static str, Duration)> {
     );
     results.push(("batch writes", duration));
 
-    let txn = db.begin_read().unwrap();
-    let table = txn.open_table(table_def).unwrap();
-    {
-        for _ in 0..ITERATIONS {
-            let mut rng = make_rng();
-            let start = Instant::now();
-            let mut checksum = 0u64;
-            let mut expected_checksum = 0u64;
-            for _ in 0..ELEMENTS {
-                let (key, value) = gen_pair(&mut rng);
-                let result = table.get(&key).unwrap().unwrap();
-                checksum += result[0] as u64;
-                expected_checksum += value[0] as u64;
-            }
-            assert_eq!(checksum, expected_checksum);
-            let end = Instant::now();
-            let duration = end - start;
-            println!(
-                "{}: Random read {} items in {}ms",
-                RedbBenchDatabase::db_type_name(),
-                ELEMENTS,
-                duration.as_millis()
-            );
-            results.push(("random reads", duration));
-        }
+    // let txn = db.begin_read().unwrap();
+    // let table = txn.open_table(table_def).unwrap();
+    // {
+    //     for _ in 0..ITERATIONS {
+    //         let mut rng = make_rng();
+    //         let start = Instant::now();
+    //         let mut checksum = 0u64;
+    //         let mut expected_checksum = 0u64;
+    //         for _ in 0..ELEMENTS {
+    //             let (key, value) = gen_pair(&mut rng);
+    //             let result = table.get(&key).unwrap().unwrap();
+    //             checksum += result[0] as u64;
+    //             expected_checksum += value[0] as u64;
+    //         }
+    //         assert_eq!(checksum, expected_checksum);
+    //         let end = Instant::now();
+    //         let duration = end - start;
+    //         println!(
+    //             "{}: Random read {} items in {}ms",
+    //             RedbBenchDatabase::db_type_name(),
+    //             ELEMENTS,
+    //             duration.as_millis()
+    //         );
+    //         results.push(("random reads", duration));
+    //     }
+    //
+    //     for _ in 0..ITERATIONS {
+    //         let mut rng = make_rng();
+    //         let start = Instant::now();
+    //         for _ in 0..ELEMENTS {
+    //             let (key, _value) = gen_pair(&mut rng);
+    //             table.range(key.as_slice()..).unwrap();
+    //         }
+    //         let end = Instant::now();
+    //         let duration = end - start;
+    //         println!(
+    //             "{}: Random range read {} starts in {}ms",
+    //             RedbBenchDatabase::db_type_name(),
+    //             ELEMENTS,
+    //             duration.as_millis()
+    //         );
+    //         results.push(("random range reads", duration));
+    //     }
+    // }
 
-        for _ in 0..ITERATIONS {
-            let mut rng = make_rng();
-            let start = Instant::now();
-            for _ in 0..ELEMENTS {
-                let (key, _value) = gen_pair(&mut rng);
-                table.range(key.as_slice()..).unwrap();
-            }
-            let end = Instant::now();
-            let duration = end - start;
-            println!(
-                "{}: Random range read {} starts in {}ms",
-                RedbBenchDatabase::db_type_name(),
-                ELEMENTS,
-                duration.as_millis()
-            );
-            results.push(("random range reads", duration));
-        }
-    }
-
-    let mut rng = make_rng();
-    let start = Instant::now();
-    let deletes = ELEMENTS / 2;
-    {
-        let txn = db.begin_write().unwrap();
-        let mut inserter = txn.open_table(table_def).unwrap();
-        for _ in 0..deletes {
-            let (key, _value) = gen_pair(&mut rng);
-            inserter.remove(&key).unwrap();
-        }
-        drop(inserter);
-        txn.commit().unwrap();
-    }
-
-    let end = Instant::now();
-    let duration = end - start;
-    println!(
-        "{}: Removed {} items in {}ms",
-        RedbBenchDatabase::db_type_name(),
-        deletes,
-        duration.as_millis()
-    );
-    results.push(("removals", duration));
+    // let mut rng = make_rng();
+    // let start = Instant::now();
+    // let deletes = ELEMENTS / 2;
+    // {
+    //     let txn = db.begin_write().unwrap();
+    //     let mut inserter = txn.open_table(table_def).unwrap();
+    //     for _ in 0..deletes {
+    //         let (key, _value) = gen_pair(&mut rng);
+    //         inserter.remove(&key).unwrap();
+    //     }
+    //     drop(inserter);
+    //     txn.commit().unwrap();
+    // }
+    //
+    // let end = Instant::now();
+    // let duration = end - start;
+    // println!(
+    //     "{}: Removed {} items in {}ms",
+    //     RedbBenchDatabase::db_type_name(),
+    //     deletes,
+    //     duration.as_millis()
+    // );
+    // results.push(("removals", duration));
 
     results
 }
@@ -255,7 +255,7 @@ fn benchmark<T: BenchDatabase>(mut db: T) -> Vec<(&'static str, Duration)> {
     results.push(("individual writes", duration));
 
     let start = Instant::now();
-    let batch_size = 1000;
+    let batch_size = 5000;
     {
         for _ in 0..writes {
             let txn = db.write_transaction();
@@ -280,96 +280,96 @@ fn benchmark<T: BenchDatabase>(mut db: T) -> Vec<(&'static str, Duration)> {
     );
     results.push(("batch writes", duration));
 
-    let txn = db.read_transaction();
-    {
-        for _ in 0..ITERATIONS {
-            let mut rng = make_rng();
-            let start = Instant::now();
-            let mut checksum = 0u64;
-            let mut expected_checksum = 0u64;
-            for _ in 0..ELEMENTS {
-                let (key, value) = gen_pair(&mut rng);
-                let result = txn.get(&key).unwrap();
-                checksum += result.as_ref()[0] as u64;
-                expected_checksum += value[0] as u64;
-            }
-            assert_eq!(checksum, expected_checksum);
-            let end = Instant::now();
-            let duration = end - start;
-            println!(
-                "{}: Random read {} items in {}ms",
-                T::db_type_name(),
-                ELEMENTS,
-                duration.as_millis()
-            );
-            results.push(("random reads", duration));
-        }
+    // let txn = db.read_transaction();
+    // {
+    //     for _ in 0..ITERATIONS {
+    //         let mut rng = make_rng();
+    //         let start = Instant::now();
+    //         let mut checksum = 0u64;
+    //         let mut expected_checksum = 0u64;
+    //         for _ in 0..ELEMENTS {
+    //             let (key, value) = gen_pair(&mut rng);
+    //             let result = txn.get(&key).unwrap();
+    //             checksum += result.as_ref()[0] as u64;
+    //             expected_checksum += value[0] as u64;
+    //         }
+    //         assert_eq!(checksum, expected_checksum);
+    //         let end = Instant::now();
+    //         let duration = end - start;
+    //         println!(
+    //             "{}: Random read {} items in {}ms",
+    //             T::db_type_name(),
+    //             ELEMENTS,
+    //             duration.as_millis()
+    //         );
+    //         results.push(("random reads", duration));
+    //     }
+    //
+    //     for _ in 0..ITERATIONS {
+    //         let mut rng = make_rng();
+    //         let start = Instant::now();
+    //         for _ in 0..ELEMENTS {
+    //             let (key, _value) = gen_pair(&mut rng);
+    //             txn.exists_after(&key);
+    //         }
+    //         let end = Instant::now();
+    //         let duration = end - start;
+    //         println!(
+    //             "{}: Random range read {} starts in {}ms",
+    //             T::db_type_name(),
+    //             ELEMENTS,
+    //             duration.as_millis()
+    //         );
+    //         results.push(("random range reads", duration));
+    //     }
+    // }
 
-        for _ in 0..ITERATIONS {
-            let mut rng = make_rng();
-            let start = Instant::now();
-            for _ in 0..ELEMENTS {
-                let (key, _value) = gen_pair(&mut rng);
-                txn.exists_after(&key);
-            }
-            let end = Instant::now();
-            let duration = end - start;
-            println!(
-                "{}: Random range read {} starts in {}ms",
-                T::db_type_name(),
-                ELEMENTS,
-                duration.as_millis()
-            );
-            results.push(("random range reads", duration));
-        }
-    }
-
-    let start = Instant::now();
-    let deletes = ELEMENTS / 2;
-    {
-        let mut rng = make_rng();
-        let txn = db.write_transaction();
-        let mut inserter = txn.get_inserter();
-        for _ in 0..deletes {
-            let (key, _value) = gen_pair(&mut rng);
-            inserter.remove(&key).unwrap();
-        }
-        drop(inserter);
-        txn.commit().unwrap();
-    }
-
-    let end = Instant::now();
-    let duration = end - start;
-    println!(
-        "{}: Removed {} items in {}ms",
-        T::db_type_name(),
-        deletes,
-        duration.as_millis()
-    );
-    results.push(("removals", duration));
+    // let start = Instant::now();
+    // let deletes = ELEMENTS / 2;
+    // {
+    //     let mut rng = make_rng();
+    //     let txn = db.write_transaction();
+    //     let mut inserter = txn.get_inserter();
+    //     for _ in 0..deletes {
+    //         let (key, _value) = gen_pair(&mut rng);
+    //         inserter.remove(&key).unwrap();
+    //     }
+    //     drop(inserter);
+    //     txn.commit().unwrap();
+    // }
+    //
+    // let end = Instant::now();
+    // let duration = end - start;
+    // println!(
+    //     "{}: Removed {} items in {}ms",
+    //     T::db_type_name(),
+    //     deletes,
+    //     duration.as_millis()
+    // );
+    // results.push(("removals", duration));
 
     results
 }
 
 fn main() {
-    let redb_latency_results = {
-        let tmpfile: NamedTempFile = NamedTempFile::new_in(current_dir().unwrap()).unwrap();
-        let db = unsafe {
-            redb::Database::builder()
-                .set_write_strategy(WriteStrategy::Checksum)
-                .create(tmpfile.path(), 4096 * 1024 * 1024)
-                .unwrap()
-        };
-        // let table = RedbBenchDatabase::new(&db);
-        benchmark_redb(db)
-    };
+    // let redb_latency_results = {
+    //     let tmpfile: NamedTempFile = NamedTempFile::new_in(current_dir().unwrap()).unwrap();
+    //     let db = unsafe {
+    //         redb::Database::builder()
+    //             .set_write_strategy(WriteStrategy::Checksum)
+    //             .create(tmpfile.path(), 20 * 4096 * 1024 * 1024)
+    //             .unwrap()
+    //     };
+    //     // let table = RedbBenchDatabase::new(&db);
+    //     benchmark_redb(db)
+    // };
 
     let redb_throughput_results = {
         let tmpfile: NamedTempFile = NamedTempFile::new_in(current_dir().unwrap()).unwrap();
         let db = unsafe {
             redb::Database::builder()
                 .set_write_strategy(WriteStrategy::TwoPhase)
-                .create(tmpfile.path(), 4096 * 1024 * 1024)
+                .create(tmpfile.path(), 20 * 4096 * 1024 * 1024)
                 .unwrap()
         };
         // let table = RedbBenchDatabase::new(&db);
@@ -379,37 +379,37 @@ fn main() {
     let lmdb_results = {
         let tmpfile: TempDir = tempfile::tempdir_in(current_dir().unwrap()).unwrap();
         let env = lmdb::Environment::new().open(tmpfile.path()).unwrap();
-        env.set_map_size(4096 * 1024 * 1024).unwrap();
+        env.set_map_size(20 * 4096 * 1024 * 1024).unwrap();
         let table = LmdbRkvBenchDatabase::new(&env);
         benchmark(table)
     };
 
-    let rocksdb_results = {
-        let tmpfile: TempDir = tempfile::tempdir_in(current_dir().unwrap()).unwrap();
-        let db = rocksdb::TransactionDB::open_default(tmpfile.path()).unwrap();
-        let table = RocksdbBenchDatabase::new(&db);
-        benchmark(table)
-    };
-
-    let sled_results = {
-        let tmpfile: TempDir = tempfile::tempdir_in(current_dir().unwrap()).unwrap();
-        let db = sled::Config::new().path(tmpfile.path()).open().unwrap();
-        let table = SledBenchDatabase::new(&db, tmpfile.path());
-        benchmark(table)
-    };
+    // let rocksdb_results = {
+    //     let tmpfile: TempDir = tempfile::tempdir_in(current_dir().unwrap()).unwrap();
+    //     let db = rocksdb::TransactionDB::open_default(tmpfile.path()).unwrap();
+    //     let table = RocksdbBenchDatabase::new(&db);
+    //     benchmark(table)
+    // };
+    //
+    // let sled_results = {
+    //     let tmpfile: TempDir = tempfile::tempdir_in(current_dir().unwrap()).unwrap();
+    //     let db = sled::Config::new().path(tmpfile.path()).open().unwrap();
+    //     let table = SledBenchDatabase::new(&db, tmpfile.path());
+    //     benchmark(table)
+    // };
 
     let mut rows = Vec::new();
 
-    for (benchmark, _duration) in &redb_latency_results {
+    for (benchmark, _duration) in &redb_throughput_results {
         rows.push(vec![benchmark.to_string()]);
     }
 
     for results in [
-        redb_latency_results,
+        // redb_latency_results,
         redb_throughput_results,
         lmdb_results,
-        rocksdb_results,
-        sled_results,
+        // rocksdb_results,
+        // sled_results,
     ] {
         for (i, (_benchmark, duration)) in results.iter().enumerate() {
             rows[i].push(format!("{}ms", duration.as_millis()));
