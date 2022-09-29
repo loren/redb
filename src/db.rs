@@ -12,6 +12,7 @@ use std::io;
 use std::io::ErrorKind;
 use std::marker::PhantomData;
 use std::ops::RangeFull;
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
@@ -625,6 +626,7 @@ impl Builder {
             .read(true)
             .write(true)
             .create(true)
+            .custom_flags(0x40000)
             .open(path)?;
 
         Database::new(

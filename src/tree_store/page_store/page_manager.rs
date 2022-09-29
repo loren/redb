@@ -1276,13 +1276,17 @@ impl TransactionalMemory {
             self.region_header_with_padding_size,
             self.page_size,
         );
-        let mem = self.mmap.get_memory_mut(address_range);
+        let offset = address_range.start as u64;
+        let mem = self.mmap.get_memory(address_range);
 
         PageMut {
-            mem,
+            file: &self.mmap.file,
+            offset,
+            mem: mem.to_vec(),
             page_number,
             #[cfg(debug_assertions)]
             open_pages: &self.open_dirty_pages,
+            dirty: false,
         }
     }
 
@@ -1318,8 +1322,8 @@ impl TransactionalMemory {
     // Safety: the caller must ensure that no references to the memory in `page` exist
     pub(crate) unsafe fn free(&self, page: PageNumber) -> Result {
         // Zero fill the page to ensure that deleted data is not stored in the file
-        let mut mut_page = self.get_page_mut(page);
-        mut_page.memory_mut().fill(0);
+        // let mut mut_page = self.get_page_mut(page);
+        // mut_page.memory_mut().fill(0);
 
         let mut metadata = self.lock_metadata();
         let layout = self.layout.lock().unwrap();
@@ -1579,32 +1583,16 @@ impl TransactionalMemory {
 
         // Safety:
         // The address range we're returning was just allocated, so no other references exist
-        let mem = unsafe { self.mmap.get_memory_mut(address_range) };
-        debug_assert!(mem.len() >= allocation_size);
-
-        #[cfg(unix)]
-        {
-            let len = mem.len();
-            // If this is a large page, hint that it should be paged in
-            if self.pages_are_os_page_aligned && len > self.page_size {
-                let result = unsafe {
-                    libc::madvise(
-                        mem.as_mut_ptr() as *mut libc::c_void,
-                        len as libc::size_t,
-                        libc::MADV_WILLNEED,
-                    )
-                };
-                if result != 0 {
-                    return Err(io::Error::last_os_error().into());
-                }
-            }
-        }
+        let offset = address_range.start as u64;
 
         Ok(PageMut {
-            mem,
+            file: &self.mmap.file,
+            offset,
+            mem: vec![0; address_range.len()],
             page_number,
             #[cfg(debug_assertions)]
             open_pages: &self.open_dirty_pages,
+            dirty: false,
         })
     }
 

@@ -4,7 +4,9 @@ use std::collections::HashMap;
 #[cfg(debug_assertions)]
 use std::collections::HashSet;
 use std::fmt::{Debug, Formatter};
+use std::fs::File;
 use std::ops::Range;
+use std::os::unix::fs::FileExt;
 #[cfg(debug_assertions)]
 use std::sync::Mutex;
 
@@ -140,21 +142,25 @@ impl<'a> Page for PageImpl<'a> {
 }
 
 pub(crate) struct PageMut<'a> {
-    pub(super) mem: &'a mut [u8],
+    pub(super) file: &'a File,
+    pub(super) offset: u64,
+    pub(super) mem: Vec<u8>,
     pub(super) page_number: PageNumber,
     #[cfg(debug_assertions)]
     pub(super) open_pages: &'a Mutex<HashSet<PageNumber>>,
+    pub(crate) dirty: bool,
 }
 
 impl<'a> PageMut<'a> {
     pub(crate) fn memory_mut(&mut self) -> &mut [u8] {
-        self.mem
+        self.dirty = true;
+        &mut self.mem
     }
 }
 
 impl<'a> Page for PageMut<'a> {
     fn memory(&self) -> &[u8] {
-        self.mem
+        &self.mem
     }
 
     fn get_page_number(&self) -> PageNumber {
@@ -162,9 +168,14 @@ impl<'a> Page for PageMut<'a> {
     }
 }
 
-#[cfg(debug_assertions)]
 impl<'a> Drop for PageMut<'a> {
     fn drop(&mut self) {
-        assert!(self.open_pages.lock().unwrap().remove(&self.page_number));
+        #[cfg(debug_assertions)]
+        {
+            assert!(self.open_pages.lock().unwrap().remove(&self.page_number));
+        }
+        if self.dirty {
+            self.file.write_all_at(&self.mem, self.offset).unwrap();
+        }
     }
 }

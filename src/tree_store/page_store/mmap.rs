@@ -17,7 +17,7 @@ mod windows;
 use windows::*;
 
 pub(crate) struct Mmap {
-    file: File,
+    pub(crate) file: File,
     _lock: FileLock,
     mmap: MmapInner,
     len: AtomicUsize,

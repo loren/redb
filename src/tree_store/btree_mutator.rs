@@ -521,6 +521,8 @@ impl<'a, 'b, K: RedbKey + ?Sized, V: RedbValue + ?Sized> MutateHelper<'a, 'b, K,
             mutator.remove(position);
             let checksum = self.checksum_helper(&temp);
             let temp_page_number = temp.get_page_number();
+            // Don't flush the writes
+            temp.dirty = false;
             drop(temp);
             self.mem.free(temp_page_number)?;
 
