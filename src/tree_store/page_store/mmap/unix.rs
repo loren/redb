@@ -41,7 +41,7 @@ impl MmapInner {
                 ptr::null_mut(),
                 max_capacity as libc::size_t,
                 libc::PROT_READ | libc::PROT_WRITE,
-                libc::MAP_SHARED,
+                libc::MAP_SHARED | libc::MAP_ANONYMOUS,
                 file.as_raw_fd(),
                 0,
             )
@@ -68,27 +68,29 @@ impl MmapInner {
     #[inline]
     pub(super) unsafe fn resize(&self, new_len: u64, owner: &Mmap) -> Result<()> {
         owner.file.set_len(new_len)?;
+        //
+        // let mmap = libc::mmap(
+        //     self.mmap as *mut libc::c_void,
+        //     self.capacity as libc::size_t,
+        //     libc::PROT_READ | libc::PROT_WRITE,
+        //     libc::MAP_SHARED | libc::MAP_FIXED,
+        //     owner.file.as_raw_fd(),
+        //     0,
+        // );
+        //
+        // if mmap == libc::MAP_FAILED {
+        //     Err(io::Error::last_os_error().into())
+        // } else {
+        //     assert_eq!(mmap as *mut u8, self.mmap);
+        //     let result = libc::madvise(mmap, self.capacity as libc::size_t, libc::MADV_RANDOM);
+        //     if result != 0 {
+        //         Err(io::Error::last_os_error().into())
+        //     } else {
+        //         Ok(())
+        //     }
+        // }
 
-        let mmap = libc::mmap(
-            self.mmap as *mut libc::c_void,
-            self.capacity as libc::size_t,
-            libc::PROT_READ | libc::PROT_WRITE,
-            libc::MAP_SHARED | libc::MAP_FIXED,
-            owner.file.as_raw_fd(),
-            0,
-        );
-
-        if mmap == libc::MAP_FAILED {
-            Err(io::Error::last_os_error().into())
-        } else {
-            assert_eq!(mmap as *mut u8, self.mmap);
-            let result = libc::madvise(mmap, self.capacity as libc::size_t, libc::MADV_RANDOM);
-            if result != 0 {
-                Err(io::Error::last_os_error().into())
-            } else {
-                Ok(())
-            }
-        }
+        Ok(())
     }
 
     #[inline]
