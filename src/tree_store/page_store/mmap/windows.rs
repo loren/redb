@@ -159,8 +159,16 @@ impl FileLock {
 }
 
 impl Drop for FileLock {
+    #[allow(clippy::unused_io_amount)]
     fn drop(&mut self) {
         unsafe { UnlockFileEx(self.handle, 0, u32::MAX, u32::MAX, &mut self.overlapped) };
+        let mut f = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("C:\\Users\\chris\\ord\\junk.log")
+            .unwrap();
+        f.write(format!("RELEASED {:?}\n", self.handle).as_bytes())
+            .unwrap();
     }
 }
 

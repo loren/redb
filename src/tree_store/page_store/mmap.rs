@@ -1,7 +1,7 @@
 use crate::{Error, Result};
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io;
-use std::io::ErrorKind;
+use std::io::{ErrorKind, Write};
 use std::ops::Range;
 use std::slice;
 use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, AtomicUsize, Ordering};
@@ -35,9 +35,23 @@ unsafe impl Send for Mmap {}
 unsafe impl Sync for Mmap {}
 
 impl Mmap {
+    #[allow(clippy::unused_io_amount)]
     pub(crate) fn new(file: File) -> Result<Self> {
         let len = file.metadata()?.len();
-        let lock = FileLock::new(&file)?;
+        let mut f = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("C:\\Users\\chris\\ord\\junk.log")
+            .unwrap();
+        f.write(format!("TRYING TO LOCK {:?}\n", &file).as_bytes())
+            .unwrap();
+        let lock = FileLock::new(&file);
+        if lock.is_err() {
+            f.write(format!("ERROR LOCKING {:?} {:?}\n", &file, &lock.as_ref().err()).as_bytes())
+                .unwrap();
+        }
+        let lock = lock?;
+        f.write(format!("LOCKED {:?}\n", &file).as_bytes()).unwrap();
 
         let mmap = MmapInner::create_mapping(&file, len)?;
 
